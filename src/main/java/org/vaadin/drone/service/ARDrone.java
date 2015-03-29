@@ -41,7 +41,7 @@ public final class ARDrone {
     private final DatagramSocket navSocket;
     private final Buffer commBuf;
     private boolean running = false;
-    private final List<DroneStateCallback> cbs = new ArrayList<>();
+    private final List<DroneStateCallback> stateCallbacks = new ArrayList<>();
     private long navdataInterval = 1000;
 
     public ARDrone(String ip, int comPort, int navPort) throws IOException {
@@ -130,22 +130,21 @@ public final class ARDrone {
             try {
                 NavData currentState = readNavdata(navSocket,
                         MAX_PACKET_SIZE);
-                if (timeNow - lastReportTime > this.getNavdataInterval()) {
-                    cbs.forEach(cb -> cb.onDroneStateChanged(currentState));
+                if (timeNow - lastReportTime > this.getNavdataInterval()) {                    
+                    Logger.getLogger(ARDrone.class.getName()).log(Level.FINEST, currentState.toString());
+                    stateCallbacks.forEach(cb -> cb.onDroneStateChanged(currentState));
                     lastReportTime = timeNow;
+                    Logger.getLogger(ARDrone.class.getName()).log(Level.FINEST, "Navdata update complete ");
                 }
-                Logger.getLogger(ARDrone.class.getName()).log(Level.INFO, "Navdata update complete " + lastReportTime);
             } catch (java.lang.IllegalArgumentException e) {
-                Logger.getLogger(ARDrone.class.getName()).log(Level.WARNING, "Failed to parse: " + e.getMessage());
-
+                Logger.getLogger(ARDrone.class.getName()).log(Level.FINEST, "Failed to parse: " + e.getMessage(), e);
             } catch (java.net.SocketTimeoutException e) {
-                // Try reseting
+                Logger.getLogger(ARDrone.class.getName()).log(Level.FINEST, "Navdata connection reset");
                 sendInitPacket(navSocket, inetAddr, navPort);
             } catch (Throwable t) {
-                Logger.getLogger(ARDrone.class.getName()).log(Level.SEVERE, null, t);
+                Logger.getLogger(ARDrone.class.getName()).log(Level.SEVERE, "Message read failed", t);
             }
         }
-
         Logger.getLogger(ARDrone.class.getName()).log(Level.INFO, "Stopped navdata receiver");
     }
 
@@ -155,9 +154,7 @@ public final class ARDrone {
         DatagramPacket packet = new DatagramPacket(new byte[maxPacketSize],
                 maxPacketSize);
         datagramSocket.receive(packet);
-        Logger.getLogger(ARDrone.class.getName()).log(Level.INFO, "Navdata received from drone.");
         NavData droneState = NavData.create(packet);
-        System.out.println(droneState.toString());
         return droneState;
     }
 
@@ -324,14 +321,14 @@ public final class ARDrone {
     }
 
     public void addCallback(DroneStateCallback cb) {
-        synchronized (cbs) {
-            cbs.add(cb);
+        synchronized (stateCallbacks) {
+            stateCallbacks.add(cb);
         }
     }
 
     public void removeCallback(DroneStateCallback cb) {
-        synchronized (cbs) {
-            cbs.remove(cb);
+        synchronized (stateCallbacks) {
+            stateCallbacks.remove(cb);
         }
     }
 
@@ -339,13 +336,13 @@ public final class ARDrone {
      * Supported Drone AT commands.
      */
     public enum AT {
-
         REF,
         PCMD,
         CONFIG,
         CTRL,
         FTRIM,
         LED,
+        ANIM,
         COMWDG;
     }
 

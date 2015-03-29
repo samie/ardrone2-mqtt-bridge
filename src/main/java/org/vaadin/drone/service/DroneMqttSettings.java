@@ -21,6 +21,7 @@ public class DroneMqttSettings {
 
     private String mqttPub;
     private String mqttSub;
+    private boolean jsonMode;
 
     public String getIp() {
         return ip;
@@ -76,6 +77,14 @@ public class DroneMqttSettings {
 
     public void setMqttSub(String mqttSub) {
         this.mqttSub = mqttSub;
+    }
+
+    public boolean isJsonMode() {
+        return jsonMode;
+    }
+
+    public void setJsonMode(boolean jsonMode) {
+        this.jsonMode = jsonMode;
     }
 
 }

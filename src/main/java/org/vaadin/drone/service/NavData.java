@@ -16,29 +16,22 @@ public class NavData {
         buffer.order(ByteOrder.LITTLE_ENDIAN);
 
         int state = buffer.getInt();
-        long seq = getUInt32(buffer);
+        long seqNum = getUInt32(buffer);
         int vision = buffer.getInt();
 
-        NavData d = new NavData(seq, state, vision);
-
-        // parse options
-        ByteBuffer b = buffer;
-        int cks = 0;
-        while (b.position() < b.limit()) {
-            int tag = b.getShort() & 0xFFFF;
-            int payloadSize = (b.getShort() & 0xFFFF) - 4;
-            ByteBuffer optionData = b.slice().order(ByteOrder.LITTLE_ENDIAN);
-            payloadSize = Math.min(payloadSize, optionData.remaining());
+        NavData d = new NavData(seqNum, state, vision);
+        while (buffer.position() < buffer.limit()) {
+            int tag = buffer.getShort() & 0xFFFF;
+            int payloadSize = (buffer.getShort() & 0xFFFF) - 4;
+            ByteBuffer optionData = buffer.slice().order(ByteOrder.LITTLE_ENDIAN);
+            payloadSize = Math.max(0,Math.min(payloadSize, optionData.remaining())); // added due to new AR.Drone firmware version as of 06.01.2014 (don't know which version > 2.3.3 and < 2.4.8 caused the change)
             optionData.limit(payloadSize);
-            int cksOption = parseOption(tag, optionData, d);
-            if (cksOption != 0) {
-                cks = cksOption;
-            }
-            b.position(b.position() + payloadSize);
+            parseOption(tag, optionData, d);
+            buffer.position(buffer.position() + payloadSize);
         }
 
-        if (0 != cks) {
-            assert getCRC(b, 0, b.limit() - 4) == cks;
+        if (!d.checkCheckSum(buffer)) {
+           // throw new IllegalArgumentException("Invalid data checksum");
         }
 
         return d;
@@ -84,6 +77,8 @@ public class NavData {
     private int battery;
     private int altitude;
     private int linkQuality;
+    private int checksum;
+    private ControlState controlState;
 
     public NavData(long seqNo, int state, int vision) {
         this.sequenceNumber = seqNo;
@@ -300,10 +295,15 @@ public class NavData {
         sb.append("isADCWatchdogDelayed: ").append(isADCWatchdogDelayed()).append("\n");
         sb.append("isCommunicationProblemOccurred: ").append(isCommunicationProblemOccurred()).append("\n");
         sb.append("IsEmergency: ").append(isEmergency()).append("\n");
+        sb.append("altitude: ").append(getAltitude()).append("\n");
+        sb.append("battery: ").append(getBattery()).append("\n");
+        sb.append("theta: ").append(getTheta()).append("\n");
+        sb.append("phi: ").append(getPhi()).append("\n");
+        sb.append("psi: ").append(getPsi()).append("\n");
         return sb.toString();
     }
 
-    public void setLinkQuality(int linkQuality) {
+    private void setLinkQuality(int linkQuality) {
         this.linkQuality = linkQuality;
     }
 
@@ -311,7 +311,7 @@ public class NavData {
         return linkQuality;
     }
 
-    public void setAltitude(int altitude) {
+    private void setAltitude(int altitude) {
         this.altitude = altitude;
     }
 
@@ -319,7 +319,7 @@ public class NavData {
         return altitude;
     }
 
-    public void setBattery(int battery) {
+    private void setBattery(int battery) {
         this.battery = battery;
     }
 
@@ -327,7 +327,7 @@ public class NavData {
         return battery;
     }
 
-    public void setTheta(float theta) {
+    private void setTheta(float theta) {
         this.theta = theta;
     }
 
@@ -335,7 +335,7 @@ public class NavData {
         return theta;
     }
 
-    public void setPhi(float phi) {
+    private void setPhi(float phi) {
         this.phi = phi;
     }
 
@@ -343,7 +343,7 @@ public class NavData {
         return phi;
     }
 
-    public void setPsi(float psi) {
+    private void setPsi(float psi) {
         this.psi = psi;
     }
 
@@ -351,13 +351,41 @@ public class NavData {
         return psi;
     }
 
+    private boolean checkCheckSum(ByteBuffer b) {
+        return getCRC(b, 0, b.limit() - 4) == getChecksum();
+    }
+
+    public int getState() {
+        return state;
+    }
+
+    public int getVision() {
+        return vision;
+    }
+
+    private void setCheckSum(int aInt) {
+        this.checksum = aInt;
+    }
+
+    public int getChecksum() {
+        return checksum;
+    }
+
+    private void setControlState(int state) {
+        this.controlState = ControlState.fromInt(state);
+    }
+
+    public ControlState getControlState() {
+        return controlState;
+    }
+
     /* Unsigned int as long.
      */
-    public static long getUInt32(ByteBuffer b) {
+    private static long getUInt32(ByteBuffer b) {
         return (b.getInt() & 0xFFFFFFFFL);
     }
 
-    public static float[] getFloat(ByteBuffer b, int n) {
+    private static float[] getFloat(ByteBuffer b, int n) {
         float f[] = new float[n];
         for (int k = 0; k < f.length; k++) {
             f[k] = b.getFloat();
@@ -365,78 +393,61 @@ public class NavData {
         return f;
     }
 
-    private static float parseAltitudeOption(ByteBuffer b) {
-        int altitude_vision = b.getInt();
-
-        float altitude_vz = b.getFloat();
-        int altitude_ref = b.getInt();
-        int altitude_raw = b.getInt();
-
-        // TODO: what does obs mean?
-        float obs_accZ = b.getFloat();
-        float obs_alt = b.getFloat();
-
-        float[] obs_x = getFloat(b, 3);
-
-        int obs_state = b.getInt();
-
-        // TODO: what does vb mean?
-        float[] est_vb = getFloat(b, 2);
-
-        int est_state = b.getInt();
-
-        return altitude_vision;
-
-    }
-
-    private static int parseOption(int tag, ByteBuffer optionData,
-            NavData droneState) {
-
-        if (tag == WIFI_TAG) {
-            // getUInt16( optionData) ; // tag
-            // getUInt16( optionData) ; // size
-            long linkQuality = getUInt32(optionData); //
-            droneState.setLinkQuality((int) linkQuality);
-        }
-
-        if (tag == ALTITUDE_TAG) {
-            droneState.setAltitude((int) parseAltitudeOption(optionData));
-        }
-
-        if (tag == DEMO_TAG) {
-            int parsedTag = optionData.getShort();
-            int parsedSize = optionData.getShort();
-            int battery = optionData.getInt();
-            droneState.setBattery(battery);
-
-            float theta = optionData.getFloat();
-            droneState.setTheta(theta);
-
-            float phi = optionData.getFloat();
-            droneState.setPhi(phi);
-
-            float psi = optionData.getFloat();
-            droneState.setPsi(psi);
-
-            int altitude = optionData.getInt();
-            droneState.setAltitude(altitude);
-        }
-
-        int checksum = 0;
-        if (tag == CKS_TAG) {
-            checksum = optionData.getInt();
-        }
-
-        return checksum;
-    }
-
-    public static int getCRC(byte[] b, int offset, int length) {
+    private int getCRC(byte[] b, int offset, int length) {
         CRC32 cks = new CRC32();
         cks.update(b, offset, length);
         return (int) (cks.getValue() & 0xFFFFFFFFL);
     }
 
-    public static int getCRC(ByteBuffer b, int offset, int length) {
+    private int getCRC(ByteBuffer b, int offset, int length) {
         return getCRC(b.array(), b.arrayOffset() + offset, length);
     }
+
+    private static void parseOption(int tag, ByteBuffer optionData,
+            NavData droneState) {
+
+        switch (tag) {
+            case DEMO_TAG:
+                int controlState = optionData.getInt();
+                int batteryPercentage = optionData.getInt();
+                float theta = optionData.getFloat();
+                float phi = optionData.getFloat();
+                float psi = optionData.getFloat();
+                int altitude = optionData.getInt();
+                float v[] = getFloat(optionData, 3);
+
+                droneState.setControlState(controlState);
+                droneState.setBattery(batteryPercentage);
+                droneState.setTheta(theta);
+                droneState.setPhi(phi);
+                droneState.setPsi(psi);
+                droneState.setAltitude(altitude);
+                break;
+            case WIFI_TAG:
+                long linkQuality = getUInt32(optionData);
+                droneState.setLinkQuality((int) linkQuality);
+                break;
+            case ALTITUDE_TAG:
+                altitude = optionData.getInt();
+                droneState.setAltitude(altitude);
+                break;
+            case CKS_TAG:
+                droneState.setCheckSum(optionData.getInt());
+                break;
+        }
+    }
+
+    public enum ControlState {
+
+        DEFAULT, INIT, LANDED, FLYING, HOVERING, TEST, TRANS_TAKEOFF, TRANS_GOTOFIX, TRANS_LANDING;
+
+        public static ControlState fromInt(int v) {
+            ControlState[] values = values();
+            if (v < 0 || v > values.length) {
+                return null;
+            }
+            return values[v];
+        }
+    }
+
 }

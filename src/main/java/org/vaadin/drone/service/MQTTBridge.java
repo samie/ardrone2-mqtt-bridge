@@ -5,6 +5,9 @@
  */
 package org.vaadin.drone.service;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -57,12 +60,37 @@ public class MQTTBridge {
         }
     }
 
-    private void publish(String topic, NavData navData) {
-        try {
-            mqtt.publish(topic, new MqttMessage(String.valueOf(navData.getBattery()).getBytes()));
-        } catch (MqttException ex) {
-            Logger.getLogger(MQTTBridge.class.getName()).log(Level.SEVERE, null, ex);
+    private void publish(String parentTopic, NavData navData) {
+
+        Gson b = new GsonBuilder().setDateFormat("yyyy-MM-dd HH:mm:ss:SSS").create();
+        JsonObject json = b
+                .toJsonTree(navData).getAsJsonObject();
+        if (isPublishJson()) {
+            try {
+                mqtt.publish(parentTopic, new MqttMessage(b.toJson(json).getBytes()));
+                Logger.getLogger(MQTTBridge.class.getName()).log(Level.INFO, "MQTT: publish " + parentTopic + "=" + json.toString());
+            } catch (MqttException ex) {
+                Logger.getLogger(MQTTBridge.class.getName()).log(Level.SEVERE, null, ex);
+            }
+
+        } else {
+            json.entrySet().stream().forEach(p -> {
+                try {
+                    String k = "/" + p.getKey().toUpperCase();
+                    String v = p.getValue().toString();
+                    mqtt.publish(parentTopic + p.getKey(), new MqttMessage(v.getBytes()));
+                    Logger.getLogger(MQTTBridge.class.getName()).log(Level.INFO, "MQTT: publish " + parentTopic + k + "=" + v);
+                } catch (MqttException ex) {
+                    Logger.getLogger(MQTTBridge.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            });
+
         }
+
+    }
+
+    private boolean isPublishJson() {
+        return settings.isJsonMode();
     }
 
     /**
@@ -111,7 +139,6 @@ public class MQTTBridge {
             }
         }
 
-        private static final String DRONE_CMD = "DRONE";
         private static final String NAVDATA_CMD = "NAVDATA";
 
         @Override
