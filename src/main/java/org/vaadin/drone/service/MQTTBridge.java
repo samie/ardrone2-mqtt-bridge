@@ -68,7 +68,7 @@ public class MQTTBridge {
         if (isPublishJson()) {
             try {
                 mqtt.publish(parentTopic, new MqttMessage(b.toJson(json).getBytes()));
-                Logger.getLogger(MQTTBridge.class.getName()).log(Level.INFO, "MQTT: publish " + parentTopic + "=" + json.toString());
+                Logger.getLogger(MQTTBridge.class.getName()).log(Level.FINE, "MQTT: publish " + parentTopic + "=" + json.toString());
             } catch (MqttException ex) {
                 Logger.getLogger(MQTTBridge.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -79,7 +79,7 @@ public class MQTTBridge {
                     String k = "/" + p.getKey().toUpperCase();
                     String v = p.getValue().toString();
                     mqtt.publish(parentTopic + p.getKey(), new MqttMessage(v.getBytes()));
-                    Logger.getLogger(MQTTBridge.class.getName()).log(Level.INFO, "MQTT: publish " + parentTopic + k + "=" + v);
+                    Logger.getLogger(MQTTBridge.class.getName()).log(Level.FINE, "MQTT: publish " + parentTopic + k + "=" + v);
                 } catch (MqttException ex) {
                     Logger.getLogger(MQTTBridge.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -103,13 +103,13 @@ public class MQTTBridge {
 
         @Override
         public void connectionLost(Throwable thrwbl) {
-            System.err.println("MQTT: connectionLost");
+            Logger.getLogger(MQTTBridge.class.getName()).log(Level.FINE, "MQTT: connectionLost");
         }
 
         @Override
         public void messageArrived(String topic, MqttMessage mm) throws Exception {
             String payload = new String(mm.getPayload());
-            System.err.println("MQTT: messageArrived " + topic + ":" + payload);
+            Logger.getLogger(MQTTBridge.class.getName()).log(Level.FINE, "MQTT: messageArrived " + topic + ":" + payload);
 
             String cmdName = topic.substring(topic.lastIndexOf("/") + 1);
             ARDrone.AT cmd = null;
@@ -119,6 +119,10 @@ public class MQTTBridge {
             }
             if (cmd != null) {
                 drone.sendCommand(cmd, payload);
+            } else if (TRIM_CMD.equals(cmdName)) {
+                drone.cmdReset();
+            } else if (RESET_CMD.equals(cmdName)) {
+                drone.cmdReset();
             } else if (NAVDATA_CMD.equals(cmdName)) {
                 String type = payload.toLowerCase();
                 if ("stop".equals(type)) {
@@ -140,10 +144,12 @@ public class MQTTBridge {
         }
 
         private static final String NAVDATA_CMD = "NAVDATA";
+        private static final String TRIM_CMD = "TRIM";
+        private static final String RESET_CMD = "RESET";
 
         @Override
         public void deliveryComplete(IMqttDeliveryToken imdt) {
-            System.err.println("MQTT: deliveryComplete");
+            Logger.getLogger(MQTTBridge.class.getName()).log(Level.FINE, "MQTT: deliveryComplete" + imdt);
         }
     }
 

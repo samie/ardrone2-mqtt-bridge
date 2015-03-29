@@ -130,7 +130,7 @@ public final class ARDrone {
             try {
                 NavData currentState = readNavdata(navSocket,
                         MAX_PACKET_SIZE);
-                if (timeNow - lastReportTime > this.getNavdataInterval()) {                    
+                if (timeNow - lastReportTime > this.getNavdataInterval()) {
                     Logger.getLogger(ARDrone.class.getName()).log(Level.FINEST, currentState.toString());
                     stateCallbacks.forEach(cb -> cb.onDroneStateChanged(currentState));
                     lastReportTime = timeNow;
@@ -172,6 +172,10 @@ public final class ARDrone {
 
     public void cmdReset() throws IOException {
         sendInternalCommand(InternalCommand.RESET_EMERGENCY);
+    }
+
+    public void cmdTrim() throws IOException {
+        sendInternalCommand(InternalCommand.TRIM);
     }
 
     public void cmdNavData(boolean demoMode) throws IOException {
@@ -336,6 +340,7 @@ public final class ARDrone {
      * Supported Drone AT commands.
      */
     public enum AT {
+
         REF,
         PCMD,
         CONFIG,
