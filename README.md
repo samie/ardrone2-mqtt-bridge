@@ -1,7 +1,7 @@
 # AR.Drone 2 navdata and control over MQTT.
 
 Standalone Spring Boot service that publishes and subscribes MQTT topics from/to an AR.Drone 2.0.
-This can be used wigether with [MQTT dashboard to display](https://github.com/samie/mqtt-dashboard) in-flight data from the drone as well as 
+This can be used wigether with [MQTT dashboard to display](https://github.com/samie/bluemix-mqtt-dashboard) in-flight data from the drone as well as 
 control the drone over MQTT.
 
 ## Used technology
