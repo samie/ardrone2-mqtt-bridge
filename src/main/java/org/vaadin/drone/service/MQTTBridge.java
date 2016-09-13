@@ -123,6 +123,12 @@ public class MQTTBridge {
                 drone.cmdReset();
             } else if (RESET_CMD.equals(cmdName)) {
                 drone.cmdReset();
+            } else if (TAKEOFF_CMD.equals(cmdName)) {
+                drone.cmdTakeoff();
+            } else if (LAND_CMD.equals(cmdName)) {
+                drone.cmdLand();
+            } else if (TRIM_CMD.equals(cmdName)) {
+                drone.cmdReset();
             } else if (NAVDATA_CMD.equals(cmdName)) {
                 String type = payload.toLowerCase();
                 if ("stop".equals(type)) {
@@ -146,6 +152,8 @@ public class MQTTBridge {
         private static final String NAVDATA_CMD = "NAVDATA";
         private static final String TRIM_CMD = "TRIM";
         private static final String RESET_CMD = "RESET";
+        private static final String TAKEOFF_CMD = "TAKEOFF";
+        private static final String LAND_CMD = "LAND";
 
         @Override
         public void deliveryComplete(IMqttDeliveryToken imdt) {
